@@ -65,6 +65,7 @@ namespace Lab21_AaDS
             {
                 root = newNode;
                 root.color = NodeColor.Black;
+                size++;
                 return;
             }
 
@@ -117,6 +118,7 @@ namespace Lab21_AaDS
 
         public void CopyTo(KeyValuePair<K, T>[] array, int arrayIndex)
         {
+            // well, its not a part of the task
             throw new NotImplementedException();
         }
 
@@ -134,6 +136,7 @@ namespace Lab21_AaDS
                     node.Parent.SetAndLinkLeftChild(node.RightChild);
                 else
                     node.Parent.SetAndLinkRightChild(node.RightChild);
+
 
                 return true;
             }
@@ -153,25 +156,47 @@ namespace Lab21_AaDS
             while (lowestRightValNode.LeftChild != null)
                 lowestRightValNode = lowestRightValNode.LeftChild;
 
-            var lowestValNodeColor = lowestRightValNode.color;
 
             if (lowestRightValNode != node.RightChild)
-                lowestRightValNode.Parent.SetAndLinkLeftChild(lowestRightValNode.RightChild);
+                lowestRightValNode.Parent?.SetAndLinkLeftChild(lowestRightValNode.RightChild);
+
 
             if (node.IsLeftChild)
-                node.Parent.SetAndLinkLeftChild(lowestRightValNode);
+                node.Parent?.SetAndLinkLeftChild(lowestRightValNode);
+            else if (node.IsRightChild)
+                node.Parent?.SetAndLinkRightChild(lowestRightValNode);
             else
-                node.Parent.SetAndLinkRightChild(lowestRightValNode);
+            {
+                root = lowestRightValNode;
+                lowestRightValNode.Parent = null;
+            }
+
+            node.Unlink();
 
             lowestRightValNode.SetAndLinkLeftChild(node.LeftChild);
+            if (lowestRightValNode!=node.RightChild)
+                lowestRightValNode.SetAndLinkRightChild(node.RightChild);
 
-            lowestRightValNode.co
+            size--;
 
+            if (size > 1 && lowestRightValNode.color == NodeColor.Black)
+            {
+                RecoverAfterRemovingButItIsNullNodeParent(lowestRightValNode, true);
+            }
+
+            return true;
         }
 
         public bool Remove(KeyValuePair<K, T> item)
         {
-            throw new NotImplementedException();
+            var node = GetNodeByKey(item.Key);
+            if (node==null)
+                return false;
+
+            if (!node.value.Equals(item.Value))
+                return false;
+
+            return Remove(item.Key);
         }
 
         public bool TryGetValue(K key, out T value)
@@ -216,7 +241,7 @@ namespace Lab21_AaDS
                 if (newNode.Parent.IsLeftChild)
                 {
                     var grandParent = newNode.Parent.Parent;                        // definitely not null
-                    if (grandParent.RightChild==null || grandParent.RightChild.color == NodeColor.Red)
+                    if (grandParent.RightChild?.color == NodeColor.Red)
                     {
                         grandParent.LeftChild.color = NodeColor.Black;
 
@@ -241,7 +266,7 @@ namespace Lab21_AaDS
                 else if (newNode.Parent.IsRightChild)
                 {
                     var grandParent = newNode.Parent.Parent;                        // definitely not null
-                    if (grandParent.LeftChild==null || grandParent.LeftChild.color == NodeColor.Red)
+                    if (grandParent.LeftChild?.color == NodeColor.Red)
                     {
                         if (grandParent.LeftChild != null)
                             grandParent.LeftChild.color = NodeColor.Black;
@@ -264,12 +289,204 @@ namespace Lab21_AaDS
                 }
 
                 else
-                    throw new Exception("uv messed up");
+                    throw new Exception("iv messed up");            // this shouldnt happen normally
             }
 
             root.color = NodeColor.Black;
         }
 
+        private void RecoverAfterRemovingButItIsNullNodeParent(RedBlackTreeNode<K,T> parentNode, bool useRightNode)
+        {
+            // it will give control to normal recover method after curNode becomes not null
+            // that makes x4 of similar code parts
+
+            RedBlackTreeNode<K, T> bro = null;
+            while ((useRightNode && parentNode.RightChild != null) || parentNode.LeftChild!=null)
+            {
+                if (!useRightNode)
+                {
+                    bro ??= parentNode.RightChild;
+                    if (bro.color == NodeColor.Red)
+                    {
+                        bro.color = NodeColor.Black;
+                        parentNode.color = NodeColor.Red;
+
+                        RotLeft(parentNode);
+                        bro = parentNode.RightChild;
+                    }
+                    else if ((bro.LeftChild == null || bro.LeftChild.color == NodeColor.Black) && (bro.RightChild == null || bro.RightChild.color == NodeColor.Black))
+                    {
+                        bro.color = NodeColor.Red;
+                        RecoverAfterRemoving(parentNode);           // yeah... spaghetti. too little time to rewrite
+                        return;              
+                    }
+                    else if (bro.RightChild == null || bro.RightChild.color == NodeColor.Black)
+                    {
+                        bro.LeftChild.color = NodeColor.Black;
+
+                        bro.color = NodeColor.Red;
+                        RotRight(bro);
+                        bro = parentNode.RightChild;
+                    }
+                    else
+                    {
+                        bro.color = parentNode.color;
+                        parentNode.color = NodeColor.Black;
+                        if (bro.RightChild != null)
+                            bro.RightChild.color = NodeColor.Black;
+                        RotLeft(parentNode);
+
+                        RecoverAfterRemoving(root);
+                        return;
+                    }
+                }
+
+                else
+                {
+                    bro ??= parentNode.LeftChild;
+                    if (bro.color == NodeColor.Red)
+                    {
+                        bro.color = NodeColor.Black;
+                        parentNode.color = NodeColor.Red;
+
+                        RotRight(parentNode);
+                        bro = parentNode.LeftChild;
+                    }
+                    else if ((bro.LeftChild == null || bro.LeftChild.color == NodeColor.Black) && (bro.RightChild == null || bro.RightChild.color == NodeColor.Black))
+                    {
+                        bro.color = NodeColor.Red;
+                        RecoverAfterRemoving(parentNode);
+                        return;
+                    }
+                    else if (bro.LeftChild == null || bro.LeftChild.color == NodeColor.Black)
+                    {
+                        bro.RightChild.color = NodeColor.Black;
+                        bro.color = NodeColor.Red;
+                        RotLeft(bro);
+                        bro = parentNode.LeftChild;
+                    }
+                    else
+                    {
+                        bro.color = parentNode.color;
+                        parentNode.color = NodeColor.Black;
+                        if (bro.LeftChild != null)
+                            bro.LeftChild.color = NodeColor.Black;
+                        RotRight(parentNode);
+
+                        RecoverAfterRemoving(root);
+                        return;
+                    }
+                }
+            }
+
+            RecoverAfterRemoving(useRightNode ? parentNode.RightChild : parentNode.LeftChild);
+        }
+
+        private void RecoverAfterRemoving(RedBlackTreeNode<K,T> node)
+        {
+            RedBlackTreeNode<K, T> bro = null;
+            bool mbRecovered = false;
+            while (node!=root || node.color!=NodeColor.Black)
+            {
+                if (node.IsLeftChild)
+                {
+                    bro ??= node.Parent.RightChild;
+                    if (bro.color == NodeColor.Red)
+                    {
+                        bro.color = NodeColor.Black;
+                        var parent = node.Parent;
+                        parent.color = NodeColor.Red;
+                        
+                        RotLeft(parent);
+                        bro = node.Parent.RightChild;
+
+                        mbRecovered = false;
+                    }
+                    else if ((bro.LeftChild==null || bro.LeftChild.color == NodeColor.Black) && (bro.RightChild == null || bro.RightChild.color == NodeColor.Black))
+                    {
+                        bro.color = NodeColor.Red;
+                        node = node.Parent;
+
+                        mbRecovered = false;
+                    }
+                    else if (bro.RightChild == null || bro.RightChild.color == NodeColor.Black)
+                    {
+                        bro.LeftChild.color = NodeColor.Black;
+
+                        bro.color = NodeColor.Red;
+                        RotRight(bro);
+                        bro = node.Parent.RightChild;
+
+                        mbRecovered = false;
+                    }
+                    else
+                    {
+                        if (mbRecovered)
+                        {
+                            node = root;
+                            node.color = NodeColor.Black;
+                            break;
+                        }
+                        mbRecovered = true;
+
+                        bro.color = node.Parent.color;
+                        node.Parent.color = NodeColor.Black;
+                        if (bro.RightChild != null)
+                            bro.RightChild.color = NodeColor.Black;
+                        RotLeft(node.Parent);
+                    }
+                }
+
+                // could have compacted it, but.. it works fine the way it is. And compacted version is a bit harder to read
+                else
+                {
+                    bro ??= node.Parent.LeftChild;
+                    if (bro.color == NodeColor.Red)
+                    {
+                        bro.color = NodeColor.Black;
+                        var parent = node.Parent;
+                        parent.color = NodeColor.Red;
+
+                        RotRight(parent);
+                        bro = node.Parent.LeftChild;
+
+                        mbRecovered = false;
+                    }
+                    else if ((bro.LeftChild == null || bro.LeftChild.color == NodeColor.Black) && (bro.RightChild == null || bro.RightChild.color == NodeColor.Black))
+                    {
+                        bro.color = NodeColor.Red;
+                        node = node.Parent;
+                        mbRecovered = false;
+                    }
+                    else if (bro.LeftChild == null || bro.LeftChild.color == NodeColor.Black)
+                    {
+                        bro.RightChild.color = NodeColor.Black;
+                        bro.color = NodeColor.Red;
+                        RotLeft(bro);
+                        bro = node.Parent.LeftChild;
+
+                        mbRecovered = false;
+                    }
+                    else
+                    {
+                        if (mbRecovered)
+                        {
+                            node = root;
+                            node.color = NodeColor.Black;
+                            break;
+                        }
+                        mbRecovered = true;
+
+
+                        bro.color = node.Parent.color;
+                        node.Parent.color = NodeColor.Black;
+                        if (bro.LeftChild != null)
+                            bro.LeftChild.color = NodeColor.Black;
+                        RotRight(node.Parent);
+                    }
+                }
+            }
+        }
 
         private void RotLeft(RedBlackTreeNode<K, T> node)             
         {
@@ -279,6 +496,7 @@ namespace Lab21_AaDS
             var toRightAndLeftChild = node.RightChild.LeftChild;
             var parent = node.Parent;
 
+
             if (parent != null)
             {
                 if (parent.LeftChild == node)
@@ -287,7 +505,10 @@ namespace Lab21_AaDS
                     parent.SetAndLinkRightChild(node.RightChild);
             }
             else
+            {       // if this is root
+                root = node.RightChild;
                 node.RightChild.Parent = null;
+            }
 
             node.RightChild.SetAndLinkLeftChild(node);
             node.SetAndLinkRightChild(toRightAndLeftChild);
@@ -309,7 +530,10 @@ namespace Lab21_AaDS
                     parent.SetAndLinkRightChild(node.LeftChild);
             }
             else
+            {
+                root = node.LeftChild;
                 node.LeftChild.Parent = null;
+            }
 
             node.LeftChild.SetAndLinkRightChild(node);
             node.SetAndLinkLeftChild(toLeftAndRightChild);
@@ -345,7 +569,25 @@ namespace Lab21_AaDS
         public RedBlackTreeNode<K,T> RightChild { get; internal set; }
 
         public bool IsLeftChild => Parent?.LeftChild == this;                
-        public bool IsRightChild => Parent?.RightChild == this;                
+        public bool IsRightChild => Parent?.RightChild == this;        
+        
+        internal void Unlink()
+        {
+            if (IsLeftChild)
+                Parent.LeftChild = null;
+            else if (IsRightChild)
+                Parent.RightChild = null;
+
+            if (LeftChild?.Parent == this)
+                LeftChild.Parent = null;
+
+            if (RightChild?.Parent == this)
+                RightChild.Parent = null;
+
+            // Parent = null;
+            // LeftChild = null;
+            // RightChild = null;
+        }
 
         public void SetAndLinkLeftChild(RedBlackTreeNode<K,T> child)
         {
@@ -376,7 +618,7 @@ namespace Lab21_AaDS
 
         public override string ToString()
         {
-            return $"[{Key}]: {value} <{color}>";
+            return $"[{Key}]: {value}";
         }
     }
 
